@@ -20,6 +20,7 @@ local profileTemplate = {
 
 local profileStore = ProfileService.GetProfileStore("PlayerData_v1", profileTemplate)
 local profiles = {} -- [player] = profile
+local profilesByUserId = {} -- [userId] = profile (pour lookup flexible)
 
 ----- Chargement d'un profil -----
 
@@ -38,6 +39,7 @@ local function onPlayerAdded(player)
 
 	profile:ListenToRelease(function()
 		profiles[player] = nil
+		profilesByUserId[player.UserId] = nil
 		print("[DataService] Profil libéré (sauvegardé) pour " .. player.Name .. ".")
 		player:Kick("Tes données ont été reprises par un autre serveur. Reconnecte-toi.")
 	end)
@@ -48,7 +50,12 @@ local function onPlayerAdded(player)
 	end
 
 	profiles[player] = profile
+	profilesByUserId[player.UserId] = profile
 	print("[DataService] Profil chargé pour " .. player.Name .. " — Pieces: " .. tostring(profile.Data.Pieces) .. ", Niveau: " .. tostring(profile.Data.Niveau))
+
+	-- Répliquer les données vers le client pour le HUD (source de vérité = serveur)
+	local playerDataUpdated = ReplicatedStorage:WaitForChild("PlayerDataUpdated") :: RemoteEvent
+	playerDataUpdated:FireClient(player, profile.Data.Pieces, profile.Data.Niveau)
 end
 
 ----- Libération (sauvegarde) à la déconnexion -----
@@ -59,6 +66,7 @@ local function onPlayerRemoving(player)
 		print("[DataService] Sauvegarde et libération du profil pour " .. player.Name .. ".")
 		profile:Release()
 		profiles[player] = nil
+		profilesByUserId[player.UserId] = nil
 	end
 end
 
@@ -75,13 +83,36 @@ Players.PlayerRemoving:Connect(onPlayerRemoving)
 
 local DataService = {}
 
-function DataService.getProfile(player)
-	return profiles[player]
+--- Retourne le profil (objet ProfileService) pour un joueur.
+--- Accepte un Player ou un UserId (number).
+function DataService.getProfile(playerOrUserId)
+	local profile = nil
+	if type(playerOrUserId) == "number" then
+		profile = profilesByUserId[playerOrUserId]
+	else
+		profile = profiles[playerOrUserId]
+	end
+	return profile
 end
 
-function DataService.getData(player)
-	local profile = profiles[player]
-	return profile and profile.Data or nil
+--- Retourne la table Data (Pieces, Niveau) pour un joueur, ou nil si pas chargé.
+--- Accepte un Player ou un UserId (number).
+function DataService.getData(playerOrUserId)
+	local profile = DataService.getProfile(playerOrUserId)
+	local data = profile and profile.Data or nil
+	local keyStr = type(playerOrUserId) == "number" and ("UserId=" .. tostring(playerOrUserId)) or ("Player " .. tostring(playerOrUserId.Name) .. "/" .. tostring(playerOrUserId.UserId))
+	print("[DataService] getData(" .. keyStr .. ") -> profile=" .. (profile and "ok" or "nil") .. ", data=" .. (data and "ok" or "nil"))
+	return data
+end
+
+--- Envoie les données actuelles du joueur à son client (pour le HUD).
+--- À appeler après toute modification de Pieces ou Niveau côté serveur.
+function DataService.replicateToClient(player)
+	local data = DataService.getData(player)
+	if data then
+		local playerDataUpdated = ReplicatedStorage:WaitForChild("PlayerDataUpdated") :: RemoteEvent
+		playerDataUpdated:FireClient(player, data.Pieces, data.Niveau)
+	end
 end
 
 return DataService

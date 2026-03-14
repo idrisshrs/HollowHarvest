@@ -6,10 +6,21 @@
       "$path": "src/server"
     },
     "ReplicatedStorage": {
-      "$path": "src/shared"
+      "$className": "ReplicatedStorage",
+      "$path": "src/shared",
+      "PlayerDataUpdated": {
+        "$className": "RemoteEvent"
+      }
     },
-    "StarterPlayerScripts": {
-      "$path": "src/client"
+    "StarterGui": {
+      "$className": "StarterGui"
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "src/client"
+      }
     }
   }
 }
