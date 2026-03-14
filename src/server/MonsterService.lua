@@ -15,6 +15,7 @@ local Players     = game:GetService("Players")
 local Lighting    = game:GetService("Lighting")
 local DataService = require(script.Parent.DataService)
 local VFXService  = require(script.Parent.VFXService)
+local XPService   = require(script.Parent.XPService)
 
 local MONSTER_TYPES = {
 	Normal = {
@@ -260,6 +261,7 @@ function MonsterService.spawnMonster(spawnPos)
 				local data = DataService.getData(winner)
 				if data then
 					data.Pieces = data.Pieces + rewardPieces
+					XPService.addXP(winner, 20)
 					DataService.replicateToClient(winner)
 				end
 			end

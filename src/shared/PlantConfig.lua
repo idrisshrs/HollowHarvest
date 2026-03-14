@@ -1,33 +1,40 @@
+--[[
+	PlantConfig — Économie des 4 graines (courbe de progression).
+	Ble → Carotte → Tomate → Magique.
+]]
+
 local PlantConfig = {
-	["Blé"] = {
+	Ble = {
 		RequiredLevel = 1,
-		Time = 10,
-		Price = 0,
-		Reward = 10,
+		Time = 8,
+		PrixAchat = 10,
+		Reward = 15,
+		XPReward = 5,
 		Color = Color3.fromRGB(255, 215, 0),
 	},
-
 	Carotte = {
-		RequiredLevel = 2,
-		Time = 15,
-		Price = 0,
-		Reward = 25,
+		RequiredLevel = 1,
+		Time = 20,
+		PrixAchat = 30,
+		Reward = 50,
+		XPReward = 15,
 		Color = Color3.fromRGB(255, 128, 0),
 	},
-
 	Tomate = {
-		RequiredLevel = 3,
-		Time = 20,
-		Price = 0,
-		Reward = 50,
+		RequiredLevel = 1,
+		Time = 45,
+		PrixAchat = 100,
+		Reward = 200,
+		XPReward = 40,
 		Color = Color3.fromRGB(255, 0, 0),
 	},
-
-	Rare = {
-		Time = 20,
-		Price = 50,
-		Reward = 150,
-		Color = Color3.fromRGB(255, 100, 255),
+	Magique = {
+		RequiredLevel = 1,
+		Time = 120,
+		PrixAchat = 500,
+		Reward = 1500,
+		XPReward = 150,
+		Color = Color3.fromRGB(180, 100, 255),
 	},
 }
 

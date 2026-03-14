@@ -3,10 +3,11 @@
 -- CHANGEMENT : VFXService chargé EN PREMIER (crée les events)
 -- SwordServer est un Script autonome, pas besoin de le require
 -- ============================================================
- 
+
+local XPService      = require(script.Parent.XPService)
 local VFXService     = require(script.Parent.VFXService)
 VFXService.start()   -- ⚠️ Doit être avant tout le reste
- 
+
 local DataService    = require(script.Parent.DataService)
 local TimeService    = require(script.Parent.TimeService)
 local GrowthService  = require(script.Parent.GrowthService)

@@ -8,23 +8,37 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DataService = require(script.Parent.DataService)
 local VFXService = require(script.Parent.VFXService)
+local XPService = require(script.Parent.XPService)
 local PlantConfig = require(ReplicatedStorage:WaitForChild("PlantConfig"))
 
-local function getBestPlantForLevel(level: number)
+local SEED_DISPLAY_NAMES = { Ble = "Blé", Carotte = "Carotte", Tomate = "Tomate", Magique = "Magique" }
+
+local function getBestSeedFromInventory(inventaireGraines)
+	if not inventaireGraines then
+		return nil, nil, 0
+	end
+
 	local bestName = nil
 	local bestConfig = nil
-	for name, config in pairs(PlantConfig) do
-		if name ~= "Rare" and typeof(config) == "table" then
-			local reqLevel = config.RequiredLevel
-			if typeof(reqLevel) == "number" and reqLevel <= level then
-				if not bestConfig or reqLevel > bestConfig.RequiredLevel then
-					bestName = name
+	local bestPrix = -math.huge
+	local stock = 0
+
+	for seedName, quantity in pairs(inventaireGraines) do
+		if type(quantity) == "number" and quantity > 0 then
+			local config = PlantConfig[seedName]
+			if config and typeof(config) == "table" then
+				local prix = config.PrixAchat or 0
+				if prix > bestPrix then
+					bestPrix = prix
+					bestName = seedName
 					bestConfig = config
+					stock = quantity
 				end
 			end
 		end
 	end
-	return bestName, bestConfig
+
+	return bestName, bestConfig, stock
 end
 
 local function setEmptyState(plotPart: BasePart, prompt: ProximityPrompt)
@@ -41,26 +55,21 @@ local function initPlot(plotPart: BasePart)
 
 	setEmptyState(plotPart, prompt)
 
-	-- Adapter le texte pour le joueur qui regarde le prompt (graine rare vs achat normal)
+	-- Adapter le texte pour le joueur (graine la plus chère disponible dans l'inventaire)
 	prompt.PromptShown:Connect(function(player: Player)
 		if etat ~= "vide" then
 			return
 		end
-
 		local data = DataService.getData(player)
-		local niveau = data and data.Niveau or 1
-		local grainesRares = player:GetAttribute("GrainesRares") or 0
-
-		if grainesRares > 0 then
+		local inventaire = data and data.InventaireGraines or nil
+		local bestName, _, stock = getBestSeedFromInventory(inventaire)
+		if bestName and stock > 0 then
+			local displayName = SEED_DISPLAY_NAMES[bestName] or bestName
 			prompt.ActionText = "Planter"
-			prompt.ObjectText = "Rare (Gratuit - Graine possédée)"
+			prompt.ObjectText = string.format("%s (Stock: %d)", displayName, stock)
 		else
-			local bestName, bestConfig = getBestPlantForLevel(niveau)
-			if bestName and bestConfig then
-				prompt.ObjectText = bestName .. " (Gratuit)"
-			else
-				prompt.ObjectText = "Planter"
-			end
+			prompt.ActionText = "Inventaire vide"
+			prompt.ObjectText = "Allez au Marché"
 		end
 	end)
 
@@ -71,42 +80,20 @@ local function initPlot(plotPart: BasePart)
 				warn("[GrowthService] Données introuvables pour le joueur " .. player.Name)
 				return
 			end
-
-			local niveau = data.Niveau or 1
-			local grainesRares = player:GetAttribute("GrainesRares") or 0
-
-			if grainesRares > 0 then
-				typePlante = "Rare"
-			else
-				local plantName, _ = getBestPlantForLevel(niveau)
-				if not plantName then
-					warn("[GrowthService] Aucune plante disponible pour le niveau " .. tostring(niveau) .. " de " .. player.Name)
-					return
-				end
-				typePlante = plantName
+			local inventaire = data.InventaireGraines or {}
+			local bestName, _, stock = getBestSeedFromInventory(inventaire)
+			if not bestName or stock <= 0 then
+				warn("[GrowthService] " .. player.Name .. " n'a aucune graine dans son inventaire.")
+				return
 			end
-
-			local config = typePlante and PlantConfig[typePlante]
+			typePlante = bestName
+			local config = PlantConfig[typePlante]
 			if not config then
 				warn("[GrowthService] Config manquante pour le type de plante: " .. tostring(typePlante))
 				return
 			end
-
-			if typePlante == "Rare" then
-				if grainesRares <= 0 then
-					warn("[GrowthService] " .. player.Name .. " n'a plus de graines rares.")
-					return
-				end
-				player:SetAttribute("GrainesRares", grainesRares - 1)
-			else
-				if data.Pieces < config.Price then
-					warn("[GrowthService] " .. player.Name .. " n'a pas assez de pièces pour planter " .. tostring(typePlante) .. ". Requis: " .. tostring(config.Price) .. ", a: " .. tostring(data.Pieces))
-					return
-				end
-
-				data.Pieces = data.Pieces - config.Price
-				DataService.replicateToClient(player)
-			end
+			inventaire[typePlante] = math.max((inventaire[typePlante] or 0) - 1, 0)
+			DataService.replicateSeedInventoryToClient(player)
 
 			etat = "planted"
 			prompt.Enabled = false
@@ -119,7 +106,8 @@ local function initPlot(plotPart: BasePart)
 				etat = "ready"
 				plotPart.Color = config.Color
 				prompt.ActionText = "Récolter"
-				prompt.ObjectText = string.format("%s : %d 🪙", typePlante, config.Reward)
+				local displayName = SEED_DISPLAY_NAMES[typePlante] or typePlante
+				prompt.ObjectText = string.format("%s : %d 🪙", displayName, config.Reward)
 				prompt.Enabled = true
 
 				VFXService.plantGrow(plotPart.Position)
@@ -127,12 +115,13 @@ local function initPlot(plotPart: BasePart)
 
 		elseif etat == "ready" then
 			local data = DataService.getData(player)
-			local niveau = data and data.Niveau or 1
 			local config = typePlante and PlantConfig[typePlante]
 
 			if not config then
-				local _, bestConfig = getBestPlantForLevel(niveau)
-				config = bestConfig
+				warn("[GrowthService] Config manquante au moment de la récolte pour " .. tostring(typePlante))
+				etat = "vide"
+				setEmptyState(plotPart, prompt)
+				return
 			end
 
 			etat = "vide"
@@ -140,8 +129,10 @@ local function initPlot(plotPart: BasePart)
 
 			if data and config then
 				data.Pieces = data.Pieces + config.Reward
-				print("💰 " .. player.Name .. " : Récolte " .. tostring(typePlante or "Inconnue") .. " +" .. tostring(config.Reward) .. " Pièces")
+				local xpGain = (type(config.XPReward) == "number" and config.XPReward > 0) and config.XPReward or 5
+				XPService.addXP(player, xpGain)
 				DataService.replicateToClient(player)
+				print("💰 " .. player.Name .. " : Récolte " .. tostring(typePlante or "Inconnue") .. " +" .. tostring(config.Reward) .. " Pièces")
 			end
 
 			typePlante = nil

@@ -45,6 +45,7 @@ src/
 ├── server/
 │   ├── Main.server.lua              ✅ Point d'entrée — démarre tous les services
 │   ├── DataService.lua              ✅ Sauvegarde ProfileService
+│   ├── XPService.lua                ✅ XP + level up (récolte / kill monstre)
 │   ├── VFXService.lua               ✅ Crée et fire les RemoteEvents VFX
 │   ├── TimeService.lua              ✅ Cycle Jour/Nuit (45s/45s dev, 120s prod)
 │   ├── GrowthService.lua            ✅ Plantation + récolte + lien DataService
@@ -78,18 +79,28 @@ src/
 ### Template profil joueur
 ```lua
 local profileTemplate = {
-    Pieces = 0,
+    Pieces = 100,
     Niveau = 1,
+    XP = 0,
+    XPMax = 100,
+    NiveauTotal = 1,
+    InventaireGraines = {
+        Ble = 5,
+        Carotte = 0,
+        Tomate = 0,
+        Magique = 0,
+    },
 }
 ```
+Migration : Reconcile (ProfileService) + champs XP/XPMax/NiveauTotal pour anciens profils.
 
 ### API DataService
 ```lua
-DataService.getData(player)           -- Retourne {Pieces, Niveau} ou nil
-DataService.replicateToClient(player) -- Met à jour HUD
+DataService.getData(player)           -- Retourne {Pieces, Niveau, XP, XPMax, NiveauTotal, ...} ou nil
+DataService.replicateToClient(player) -- Met à jour HUD (Pieces, Niveau, XP, XPMax, NiveauTotal)
 ```
 
-> ⚠️ Appeler `replicateToClient` après CHAQUE modification de Pieces ou Niveau
+> ⚠️ Appeler `replicateToClient` après CHAQUE modification de Pieces, Niveau ou XP
 
 ---
 
@@ -97,7 +108,8 @@ DataService.replicateToClient(player) -- Met à jour HUD
 
 | Event | Créé par | Direction | Usage |
 |---|---|---|---|
-| `PlayerDataUpdated` | DataService | Serveur → Client | HUD Pieces + Niveau |
+| `PlayerDataUpdated` | DataService | Serveur → Client | HUD Pieces, Niveau, XP, XPMax, NiveauTotal |
+| `PlayerLevelUp` | XPService | Serveur → Client | Level up (newLevel) — flash barre XP |
 | `DayNightChanged` | TimeService | Serveur → Client | Signal jour/nuit |
 | `SwordHitRequest` | SwordServer | Client → Serveur | Hit épée ou poing |
 | `VFX_EnemyHit` | VFXService | Serveur → Client | Impact épée |
@@ -107,6 +119,7 @@ DataService.replicateToClient(player) -- Met à jour HUD
 | `VFX_DayStart` | VFXService | Serveur → Client | Bandeau jour |
 | `VFX_NightStart` | VFXService | Serveur → Client | Bandeau nuit |
 | `VFX_SwordHit` | VFXService | Serveur → Client | Son swing |
+| `SeedInventoryUpdated` | DataService | Serveur → Client | Inventaire des graines (Ble, Carotte, Tomate, Magique) |
 
 ---
 
@@ -143,11 +156,14 @@ DataService → +25 pièces si monstre tué
 "vide" → [E] → "planted" → [timer] → "ready" → [E] → "vide"
 ```
 
-### Plantes
-| Type | Pousse | Gain | Stockage |
-|---|---|---|---|
-| Normale | 10s | +10p | — |
-| Rare | 20s | +150p | `player:GetAttribute("GrainesRares")` |
+### Plantes (PlantConfig — 4 graines)
+| Type | Pousse | Achat | Gain | XP récolte | Stockage |
+|---|---|---|---|---|---|
+| Blé | 8s | 10 🪙 | 15 🪙 | 5 | InventaireGraines.Ble |
+| Carotte | 20s | 30 🪙 | 50 🪙 | 15 | InventaireGraines.Carotte |
+| Tomate | 45s | 100 🪙 | 200 🪙 | 40 | InventaireGraines.Tomate |
+| Magique | 120s | 500 🪙 | 1500 🪙 | 150 | InventaireGraines.Magique |
+Champ `XPReward` dans PlantConfig ; défaut +5 XP si absent. La plantation utilise toujours la **graine la plus chère** disponible dans l'inventaire du joueur.
 
 ---
 
@@ -278,16 +294,20 @@ ShopService.start()    -- boutique
 ### Phase 1 — En cours 🔄
 - [ ] Multi-plots (6 terrains indépendants)
 - [x] PlantConfig.lua (config centrale des plantes)
+- [x] Types de graines (inventaire Blé/Carotte + achat au marché)
 - [x] Vagues de monstres (2-3 par nuit)
 - [x] Monstres variés (Rapide / Tank / Chasseur)
 - [x] VFX combat complets (tous les effets actifs)
+- [x] Hitbox épée précise (GetPartBoundsInBox)
 
-### Phase 2 — À faire
-- [ ] Système XP + récompenses journalières
+### Phase 2 — En cours 🔄
+- [x] Système XP (barre HUD, +5/+15 récolte, +20 kill monstre, level up XPMax×1.4)
+- [ ] Récompenses journalières
 - [ ] Leaderboard serveur (top 5 reset hebdo)
 - [ ] Système de prestige (rebirth)
 - [ ] PNJ Ouvrier (récolte automatique)
 - [ ] Mini-carte donjon (plusieurs salles + boss)
+- [x] Boutique à catégories (UI Marché Next Gen : onglets Améliorations / Graines / Armes, grille de cartes)
 
 ### Phase 3 — Monétisation
 - [ ] Gamepass Farmer VIP (299 Robux — +1 slot + serre)

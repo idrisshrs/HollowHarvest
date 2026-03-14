@@ -12,8 +12,17 @@ local ProfileService = require(ReplicatedStorage:WaitForChild("ProfileService"))
 ----- Template (valeurs par défaut pour un nouveau profil) -----
 
 local profileTemplate = {
-	Pieces = 0,
+	Pieces = 100,
 	Niveau = 1,
+	XP = 0,
+	XPMax = 100,
+	NiveauTotal = 1,
+	InventaireGraines = {
+		Ble = 5,
+		Carotte = 0,
+		Tomate = 0,
+		Magique = 0,
+	},
 }
 
 ----- Store & cache -----
@@ -21,6 +30,17 @@ local profileTemplate = {
 local profileStore = ProfileService.GetProfileStore("PlayerData_v1", profileTemplate)
 local profiles = {} -- [player] = profile
 local profilesByUserId = {} -- [userId] = profile (pour lookup flexible)
+
+----- RemoteEvents de réplication -----
+
+local playerDataUpdatedEvent = ReplicatedStorage:WaitForChild("PlayerDataUpdated") :: RemoteEvent
+
+local seedInventoryUpdatedEvent = ReplicatedStorage:FindFirstChild("SeedInventoryUpdated")
+if not seedInventoryUpdatedEvent then
+	seedInventoryUpdatedEvent = Instance.new("RemoteEvent")
+	seedInventoryUpdatedEvent.Name = "SeedInventoryUpdated"
+	seedInventoryUpdatedEvent.Parent = ReplicatedStorage
+end
 
 ----- Chargement d'un profil -----
 
@@ -51,11 +71,43 @@ local function onPlayerAdded(player)
 
 	profiles[player] = profile
 	profilesByUserId[player.UserId] = profile
+
+	-- Migration : forcer InventaireGraines avec au moins 5 Blé si absent (anciens profils)
+	local inv = profile.Data.InventaireGraines
+	if type(inv) ~= "table" then
+		profile.Data.InventaireGraines = {
+			Ble = 5,
+			Carotte = 0,
+			Tomate = 0,
+			Magique = 0,
+		}
+	else
+		if inv.Ble == nil or (type(inv.Ble) == "number" and inv.Ble < 0) then
+			inv.Ble = 5
+		end
+		if inv.Carotte == nil then inv.Carotte = 0 end
+		if inv.Tomate == nil then inv.Tomate = 0 end
+		if inv.Magique == nil then inv.Magique = 0 end
+	end
+
+	-- Migration sauvegarde actuelle : donner 100 pièces et 5 Blé si compte à zéro
+	if profile.Data.Pieces == 0 then
+		profile.Data.Pieces = 100
+	end
+	if not profile.Data.InventaireGraines.Ble or profile.Data.InventaireGraines.Ble == 0 then
+		profile.Data.InventaireGraines.Ble = 5
+	end
+
+	-- Migration XP (Reconcile ajoute les champs manquants ; sécuriser les anciens profils)
+	if profile.Data.XP == nil or type(profile.Data.XP) ~= "number" then profile.Data.XP = 0 end
+	if profile.Data.XPMax == nil or type(profile.Data.XPMax) ~= "number" then profile.Data.XPMax = 100 end
+	if profile.Data.NiveauTotal == nil or type(profile.Data.NiveauTotal) ~= "number" then profile.Data.NiveauTotal = 1 end
+
 	print("[DataService] Profil chargé pour " .. player.Name .. " — Pieces: " .. tostring(profile.Data.Pieces) .. ", Niveau: " .. tostring(profile.Data.Niveau))
 
-	-- Répliquer les données vers le client pour le HUD (source de vérité = serveur)
-	local playerDataUpdated = ReplicatedStorage:WaitForChild("PlayerDataUpdated") :: RemoteEvent
-	playerDataUpdated:FireClient(player, profile.Data.Pieces, profile.Data.Niveau)
+	-- Répliquer les données vers le client (HUD + inventaire) dès la connexion
+	playerDataUpdatedEvent:FireClient(player, profile.Data.Pieces, profile.Data.Niveau, profile.Data.XP, profile.Data.XPMax, profile.Data.NiveauTotal)
+	seedInventoryUpdatedEvent:FireClient(player, profile.Data.InventaireGraines)
 end
 
 ----- Libération (sauvegarde) à la déconnexion -----
@@ -106,12 +158,20 @@ function DataService.getData(playerOrUserId)
 end
 
 --- Envoie les données actuelles du joueur à son client (pour le HUD).
---- À appeler après toute modification de Pieces ou Niveau côté serveur.
+--- À appeler après toute modification de Pieces, Niveau ou XP côté serveur.
 function DataService.replicateToClient(player)
 	local data = DataService.getData(player)
 	if data then
-		local playerDataUpdated = ReplicatedStorage:WaitForChild("PlayerDataUpdated") :: RemoteEvent
-		playerDataUpdated:FireClient(player, data.Pieces, data.Niveau)
+		playerDataUpdatedEvent:FireClient(player, data.Pieces, data.Niveau, data.XP, data.XPMax, data.NiveauTotal)
+	end
+end
+
+--- Réplique uniquement l'inventaire de graines vers le client.
+--- À appeler après toute modification de data.InventaireGraines.
+function DataService.replicateSeedInventoryToClient(player)
+	local data = DataService.getData(player)
+	if data and data.InventaireGraines then
+		seedInventoryUpdatedEvent:FireClient(player, data.InventaireGraines)
 	end
 end
 

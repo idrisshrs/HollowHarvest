@@ -16,16 +16,17 @@ local Players           = game:GetService("Players")
 local localPlayer       = Players.LocalPlayer
 
 -- ═══════════════════════════════════════════════════════════
--- SONS — assets officiels du compte "Roblox"
+-- SONS — IDs officiels Roblox (évite HTTP 403)
+-- Liste : 199149263, 154965962, 259300357, 265466152, 131070686, 154556686, 2865227271
 -- ═══════════════════════════════════════════════════════════
 local SOUNDS = {
-	harvest      = "rbxassetid://9114214531", -- Collect
-	plantReady   = "rbxassetid://9114389335", -- Ding
-	swordSlash   = "rbxassetid://9114144342", -- Swoosh
-	swordHit     = "rbxassetid://9114219416", -- Impact
-	explosion    = "rbxassetid://9114388831", -- Explosion
-	dayAmbient   = "rbxassetid://9113641324", -- Nature
-	nightAmbient = "rbxassetid://9114400582", -- Spooky
+	swordHit     = "rbxassetid://199149263",  -- Impact / combat
+	swordSlash   = "rbxassetid://154965962",  -- Swoosh
+	harvest      = "rbxassetid://259300357",  -- Positif / collecte / pousse
+	plantReady   = "rbxassetid://265466152",  -- Ding plante prête
+	explosion    = "rbxassetid://131070686",  -- Explosion
+	dayAmbient   = "rbxassetid://154556686",  -- Ambiance jour
+	nightAmbient = "rbxassetid://2865227271", -- Ambiance nuit
 }
 
 -- ── Attente des events ───────────────────────────────────────
