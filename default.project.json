@@ -1,0 +1,15 @@
+{
+  "name": "PlayerONE",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$path": "src/server"
+    },
+    "ReplicatedStorage": {
+      "$path": "src/shared"
+    },
+    "StarterPlayerScripts": {
+      "$path": "src/client"
+    }
+  }
+}
