@@ -23,6 +23,12 @@ local profileTemplate = {
 		Tomate = 0,
 		Magique = 0,
 	},
+	LastLoginDay = 0,
+	LoginStreak = 0,
+	TotalDaysPlayed = 0,
+	WorkerCount = 0,
+	Prestiges = 0,
+	PieceMultiplier = 1.0,
 }
 
 ----- Store & cache -----
@@ -102,6 +108,19 @@ local function onPlayerAdded(player)
 	if profile.Data.XP == nil or type(profile.Data.XP) ~= "number" then profile.Data.XP = 0 end
 	if profile.Data.XPMax == nil or type(profile.Data.XPMax) ~= "number" then profile.Data.XPMax = 100 end
 	if profile.Data.NiveauTotal == nil or type(profile.Data.NiveauTotal) ~= "number" then profile.Data.NiveauTotal = 1 end
+
+	-- Migration WorkerCount
+	if profile.Data.WorkerCount == nil or type(profile.Data.WorkerCount) ~= "number" then
+		profile.Data.WorkerCount = 0
+	end
+
+	-- Migration Prestige
+	if profile.Data.Prestiges == nil or type(profile.Data.Prestiges) ~= "number" then
+		profile.Data.Prestiges = 0
+	end
+	if profile.Data.PieceMultiplier == nil or type(profile.Data.PieceMultiplier) ~= "number" then
+		profile.Data.PieceMultiplier = 1.0
+	end
 
 	print("[DataService] Profil chargé pour " .. player.Name .. " — Pieces: " .. tostring(profile.Data.Pieces) .. ", Niveau: " .. tostring(profile.Data.Niveau))
 

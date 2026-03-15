@@ -41,6 +41,16 @@ local MONSTER_TYPES = {
 	},
 }
 
+local SLIME_CONFIG = {
+	HP       = 50,
+	DAMAGE   = 10,
+	SPEED    = 15,
+	COLOR    = Color3.fromRGB(0, 255, 100),
+	SIZE     = Vector3.new(3, 3, 3),
+	COOLDOWN = 1.5,
+	UPDATE_RATE = 0.1,
+}
+
 local BASE_CONFIG = {
 	HP              = 100,
 	SPEED           = 18,
@@ -57,6 +67,7 @@ local LOOT_TABLE = {
 }
 
 local activeMonsters = {}
+local activeSlimes   = {}
 local currentWave    = 0
 
 local function rollLoot()
@@ -319,6 +330,178 @@ function MonsterService.despawnMonster()
 	end
 end
 
+-- ✨ PRESTIGE SLIMES SYSTEM
+function MonsterService.spawnSlime(spawnPos)
+	local maxHp = SLIME_CONFIG.HP
+
+	local model       = Instance.new("Model")
+	model.Name        = "Slime"
+	model.Parent      = workspace
+	model:SetAttribute("MonsterType", "Slime")
+
+	local body            = Instance.new("Part")
+	body.Name             = "HumanoidRootPart"
+	body.Size             = SLIME_CONFIG.SIZE
+	body.Position         = spawnPos + Vector3.new(0, 4, 0)
+	body.Color            = SLIME_CONFIG.COLOR
+	body.Material         = Enum.Material.Neon
+	body.Shape            = Enum.PartType.Ball
+	body.Anchored         = false
+	body.CanCollide       = true
+	body.Parent           = model
+	model.PrimaryPart     = body
+	body:SetNetworkOwner(nil)
+
+	-- ✅ Humanoid avec vrais PV
+	local humanoid        = Instance.new("Humanoid")
+	humanoid.MaxHealth    = maxHp
+	humanoid.Health       = maxHp
+	humanoid.WalkSpeed    = SLIME_CONFIG.SPEED
+	humanoid.HipHeight    = 2
+	humanoid.Parent       = model
+
+	local light       = Instance.new("PointLight")
+	light.Color       = SLIME_CONFIG.COLOR
+	light.Range       = 15
+	light.Brightness  = 2
+	light.Parent      = body
+
+	-- UI - Green health bar
+	local bb          = Instance.new("BillboardGui")
+	bb.Size           = UDim2.new(0, 150, 0, 50)
+	bb.StudsOffset    = Vector3.new(0, 4, 0)
+	bb.Parent         = body
+
+	local nameLbl             = Instance.new("TextLabel")
+	nameLbl.Size              = UDim2.new(1,0,0.6,0)
+	nameLbl.BackgroundTransparency = 1
+	nameLbl.Text              = "Slime ✨ | ❤️ " .. maxHp .. "/" .. maxHp
+	nameLbl.TextColor3        = Color3.fromRGB(0, 255, 100)
+	nameLbl.TextScaled        = true
+	nameLbl.Font              = Enum.Font.GothamBold
+	nameLbl.Parent            = bb
+
+	local hpBg                = Instance.new("Frame")
+	hpBg.Size                 = UDim2.new(1,0,0.3,0)
+	hpBg.Position             = UDim2.new(0,0,0.7,0)
+	hpBg.BackgroundColor3     = Color3.fromRGB(0, 60, 30)
+	hpBg.BorderSizePixel      = 0
+	hpBg.Parent               = bb
+
+	local hpBar               = Instance.new("Frame")
+	hpBar.Size                = UDim2.new(1,0,1,0)
+	hpBar.BackgroundColor3    = Color3.fromRGB(0, 255, 100)
+	hpBar.BorderSizePixel     = 0
+	hpBar.Parent              = hpBg
+
+	local alive  = true
+	local canDmg = true
+	local function isAlive() return alive end
+
+	activeSlimes[model] = true
+
+	-- ✅ Health system
+	humanoid.HealthChanged:Connect(function(newHp)
+		if not alive then return end
+		local ratio  = math.max(newHp / maxHp, 0)
+		hpBar.Size   = UDim2.new(ratio, 0, 1, 0)
+		nameLbl.Text = "Slime ✨ | ❤️ " .. math.ceil(newHp) .. "/" .. maxHp
+
+		-- Flash blanc = hit confirmé
+		if body and body.Parent then
+			body.Color = Color3.fromRGB(255, 255, 255)
+			task.delay(0.1, function()
+				if body and body.Parent then body.Color = SLIME_CONFIG.COLOR end
+			end)
+		end
+		print(string.format("💥 Slime : %.0f/%d HP", newHp, maxHp))
+	end)
+
+	-- ✅ Death event - with rare loot
+	humanoid.Died:Connect(function()
+		if not alive then return end
+		alive = false
+		activeSlimes[model] = nil
+
+		local root2 = model:FindFirstChild("HumanoidRootPart")
+		local rewardPieces = math.floor(50 * (1.0)) -- Base 50 coins, no multiplier for slimes
+
+		if root2 then
+			local winner, _ = getNearestPlayer(root2.Position)
+			if winner then
+				local data = DataService.getData(winner)
+				if data then
+					-- Coins reward
+					data.Pieces = data.Pieces + rewardPieces
+					
+					-- XP reward
+					XPService.addXP(winner, 20)
+					
+					-- 5% Chance for Magic Seed (rare loot)
+					if math.random() <= 0.05 then
+						data.InventaireGraines.Magique = data.InventaireGraines.Magique + 1
+						nameLbl.Text = "✨ +1 Graine Magique !"
+						nameLbl.TextColor3 = Color3.fromRGB(200, 0, 255)
+						print(string.format("✨ [Slime] %s a reçu une Graine Magique!", winner.Name))
+					else
+						nameLbl.Text = "💀 +" .. rewardPieces .. " 🪙"
+						nameLbl.TextColor3 = Color3.fromRGB(255, 220, 0)
+					end
+					
+					DataService.replicateToClient(winner)
+				end
+			end
+			VFXService.monsterDeath(root2.Position)
+		end
+
+		hpBar.Size = UDim2.new(0, 0, 1, 0)
+		print(string.format("💀 Slime mort ! +%d pièces", rewardPieces))
+		task.wait(0.3)
+		if body and body.Parent then deathAnim(body, model) end
+	end)
+
+	-- Dégâts slime → joueur
+	body.Touched:Connect(function(hit)
+		if not alive then return end
+		local char = hit.Parent
+		if not char then return end
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		if hum and hum ~= humanoid and canDmg then
+			canDmg = false
+			hum:TakeDamage(SLIME_CONFIG.DAMAGE)
+			if body and body.Parent then
+				body.Color = Color3.fromRGB(0, 255, 200)
+				task.delay(0.15, function()
+					if body and body.Parent then body.Color = SLIME_CONFIG.COLOR end
+				end)
+			end
+			task.wait(SLIME_CONFIG.COOLDOWN)
+			canDmg = true
+		end
+	end)
+
+	chaseLoop(model, humanoid, isAlive)
+end
+
+function MonsterService.despawnSlimes()
+	local toClear = {}
+	for model in pairs(activeSlimes) do
+		table.insert(toClear, model)
+	end
+
+	for _, model in ipairs(toClear) do
+		activeSlimes[model] = nil
+		if model and model.Parent then
+			local body = model:FindFirstChild("HumanoidRootPart")
+			if body then
+				deathAnim(body, model)
+			else
+				model:Destroy()
+			end
+		end
+	end
+end
+
 function MonsterService.start()
 	local spawnArea = workspace:WaitForChild("SpawnArea", 10)
 	if not spawnArea then
@@ -333,6 +516,7 @@ function MonsterService.start()
 			if isDay ~= lastState then
 				lastState = isDay
 				if not isDay then
+					-- 🌑 Night: Spawn monsters AND prestige slimes
 					currentWave += 1
 					local monstersToSpawn = 2 + math.floor((currentWave - 1) / 2)
 					print(string.format("🌑 Début de la vague %d — %d monstres", currentWave, monstersToSpawn))
@@ -342,8 +526,21 @@ function MonsterService.start()
 							task.wait(1.5)
 						end
 					end
+					
+					-- ✨ Spawn Prestige Slimes at night after monsters
+					print("✨ [MonsterService] Slimes de Prestige apparaissent la nuit...")
+					task.wait(2)
+					for i = 1, 3 do
+						MonsterService.spawnSlime(spawnArea.Position + Vector3.new(math.random(-20, 20), 0, math.random(-20, 20)))
+						if i < 3 then
+							task.wait(0.8)
+						end
+					end
 				else
+					-- ☀️ Day: Despawn all monsters and slimes, let farmer work
+					print("☀️ [MonsterService] Aube — Nettoyage de la zone...")
 					MonsterService.despawnMonster()
+					MonsterService.despawnSlimes()
 				end
 			end
 			task.wait(1)

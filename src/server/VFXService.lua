@@ -29,7 +29,8 @@ function VFXService.start()
 	Events.DayStart     = getOrCreate("VFX_DayStart")
 	Events.NightStart   = getOrCreate("VFX_NightStart")
 	Events.SwordHit     = getOrCreate("VFX_SwordHit")
-	print("✅ [VFXService] 7 events créés")
+	Events.Error        = getOrCreate("VFX_Error")
+	print("✅ [VFXService] 8 events créés")
 end
 
 local function fire(event, ...)
@@ -68,6 +69,11 @@ end
 
 function VFXService.nightStart()
 	fire(Events.NightStart)
+end
+
+function VFXService.error(pos, message, player)
+	if player then fireOne(Events.Error, player, pos, message)
+	else fire(Events.Error, pos, message) end
 end
 
 return VFXService

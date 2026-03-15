@@ -128,11 +128,16 @@ local function initPlot(plotPart: BasePart)
 			setEmptyState(plotPart, prompt)
 
 			if data and config then
-				data.Pieces = data.Pieces + config.Reward
+				-- Appliquer le multiplicateur de prestige
+				local multiplier = data.PieceMultiplier or 1.0
+				local basePieces = config.Reward or 15
+				local finalPieces = math.floor(basePieces * multiplier)
+				data.Pieces = data.Pieces + finalPieces
+				
 				local xpGain = (type(config.XPReward) == "number" and config.XPReward > 0) and config.XPReward or 5
 				XPService.addXP(player, xpGain)
 				DataService.replicateToClient(player)
-				print("💰 " .. player.Name .. " : Récolte " .. tostring(typePlante or "Inconnue") .. " +" .. tostring(config.Reward) .. " Pièces")
+				print("💰 " .. player.Name .. " : Récolte " .. tostring(typePlante or "Inconnue") .. " +" .. tostring(finalPieces) .. " Pièces (x" .. string.format("%.2f", multiplier) .. ")")
 			end
 
 			typePlante = nil

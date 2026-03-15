@@ -44,6 +44,7 @@ local Events = {
 	PlantGrow    = waitFor("VFX_PlantGrow"),
 	DayStart     = waitFor("VFX_DayStart"),
 	NightStart   = waitFor("VFX_NightStart"),
+	Error        = waitFor("VFX_Error"),
 }
 
 -- ═══════════════════════════════════════════════════════════
@@ -321,6 +322,14 @@ if Events.NightStart then
 		banner("🌙 La nuit tombe",
 			Color3.fromRGB(25, 0, 70), Color3.fromRGB(200, 150, 255))
 		playSoundUI(SOUNDS.nightAmbient, 0.45, 1)
+	end)
+end
+
+if Events.Error then
+	Events.Error.OnClientEvent:Connect(function(pos, message)
+		banner(message,
+			Color3.fromRGB(255, 100, 50), Color3.fromRGB(255, 200, 100))
+		playSound(SOUNDS.explosion, pos, 0.5, 0.9)
 	end)
 end
 

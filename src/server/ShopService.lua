@@ -246,6 +246,215 @@ function ShopService.openShop(player)
 				if btn and btn.Parent then btn.Text = "Acheter Niveau (+1) — 50 🪙" end
 			end)
 		end)
+
+		-- Bouton "Ouvrier" (Worker)
+		local workerBtn = Instance.new("TextButton")
+		workerBtn.Size = UDim2.new(1, 0, 0, 48)
+		workerBtn.BackgroundColor3 = Color3.fromRGB(100, 120, 60)
+		workerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		workerBtn.Font = Enum.Font.GothamBold
+		workerBtn.TextSize = 18
+		workerBtn.Parent = frameAmeliorations
+		local workerCorner = Instance.new("UICorner")
+		workerCorner.CornerRadius = UDim.new(0, 10)
+		workerCorner.Parent = workerBtn
+
+		-- Fonction pour mettre à jour le texte du bouton
+		local function updateWorkerButtonText()
+			local wd = DataService.getData(player)
+			if not wd then return end
+			local workerCount = wd.WorkerCount or 0
+			if workerCount >= 3 then
+				workerBtn.Text = "👷 Ouvrier — Limite atteinte (3/3)"
+				workerBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+			else
+				workerBtn.Text = string.format("👷 Ouvrier — %d/3 — 500 🪙", workerCount)
+				workerBtn.BackgroundColor3 = Color3.fromRGB(100, 120, 60)
+			end
+		end
+		updateWorkerButtonText()
+
+		workerBtn.MouseButton1Click:Connect(function()
+			local currentData = DataService.getData(player)
+			if not currentData then return end
+			
+			-- Vérifier la limite
+			if (currentData.WorkerCount or 0) >= 3 then
+				workerBtn.Text = "Limite de 3 ouvriers atteinte"
+				task.delay(1.2, updateWorkerButtonText)
+				return
+			end
+			
+			-- Vérifier les pièces
+			if currentData.Pieces < 500 then
+				workerBtn.Text = "Pas assez de pièces (500 nécessaires)"
+				task.delay(1.2, updateWorkerButtonText)
+				return
+			end
+			
+			-- Effectuer l'achat
+			currentData.Pieces = currentData.Pieces - 500
+			currentData.WorkerCount = (currentData.WorkerCount or 0) + 1
+			DataService.replicateToClient(player)
+			
+			-- Appeler WorkerService pour créer le visuel
+			local WorkerService = require(script.Parent.WorkerService)
+			WorkerService.spawnWorkerVisual(player)
+			
+			workerBtn.Text = "👷 Ouvrier embauché !"
+			task.delay(1.0, updateWorkerButtonText)
+		end)
+
+		-- Bouton "Prestige" (Rebirth)
+		local prestigeBtn = Instance.new("TextButton")
+		prestigeBtn.Size = UDim2.new(1, 0, 0, 48)
+		prestigeBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+		prestigeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		prestigeBtn.Font = Enum.Font.GothamBold
+		prestigeBtn.TextSize = 18
+		prestigeBtn.Parent = frameAmeliorations
+		local prestigeCorner = Instance.new("UICorner")
+		prestigeCorner.CornerRadius = UDim.new(0, 10)
+		prestigeCorner.Parent = prestigeBtn
+
+		-- Fonction pour mettre à jour l'état du bouton Prestige
+		local function updatePrestigeButtonText()
+			local pd = DataService.getData(player)
+			if not pd then return end
+			local niveauTotal = pd.NiveauTotal or 1
+			local prestiges = pd.Prestiges or 0
+			if niveauTotal >= 10 then
+				prestigeBtn.Text = string.format("✨ Prestige #%d (Niveau %d/10) ✨", prestiges + 1, niveauTotal)
+				prestigeBtn.BackgroundColor3 = Color3.fromRGB(150, 100, 180)
+			else
+				prestigeBtn.Text = string.format("✨ Prestige (Niveau %d/10) ✨", niveauTotal)
+				prestigeBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+			end
+		end
+		updatePrestigeButtonText()
+
+		prestigeBtn.MouseButton1Click:Connect(function()
+			local currentData = DataService.getData(player)
+			if not currentData then return end
+			
+			-- Vérifier le niveau
+			if (currentData.NiveauTotal or 1) < 10 then
+				prestigeBtn.Text = "Niveau 10 requis"
+				task.delay(1.0, updatePrestigeButtonText)
+				return
+			end
+			
+			-- Afficher popup de confirmation (Glassmorphism)
+			local playerGui = player:FindFirstChild("PlayerGui")
+			if not playerGui then return end
+			
+			local popupGui = Instance.new("ScreenGui")
+			popupGui.Name = "PrestigeConfirmPopup"
+			popupGui.ResetOnSpawn = false
+			popupGui.IgnoreGuiInset = true
+			popupGui.Parent = playerGui
+
+			-- Arrière-plan semi-transparent
+			local backdrop = Instance.new("Frame")
+			backdrop.Size = UDim2.new(1, 0, 1, 0)
+			backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+			backdrop.BackgroundTransparency = 0.5
+			backdrop.BorderSizePixel = 0
+			backdrop.Parent = popupGui
+
+			-- Popup frame (Glassmorphism)
+			local popup = Instance.new("Frame")
+			popup.Size = UDim2.new(0, 380, 0, 220)
+			popup.Position = UDim2.new(0.5, -190, 0.5, -110)
+			popup.BackgroundColor3 = Color3.fromRGB(40, 30, 60)
+			popup.BackgroundTransparency = 0.15
+			popup.BorderSizePixel = 0
+			popup.Parent = popupGui
+
+			local popupCorner = Instance.new("UICorner")
+			popupCorner.CornerRadius = UDim.new(0, 20)
+			popupCorner.Parent = popup
+
+			local popupStroke = Instance.new("UIStroke")
+			popupStroke.Color = Color3.fromRGB(150, 100, 180)
+			popupStroke.Thickness = 2
+			popupStroke.Parent = popup
+
+			-- Titre
+			local popupTitle = Instance.new("TextLabel")
+			popupTitle.Size = UDim2.new(1, -24, 0, 50)
+			popupTitle.Position = UDim2.new(0, 12, 0, 12)
+			popupTitle.BackgroundTransparency = 1
+			popupTitle.Font = Enum.Font.FredokaOne
+			popupTitle.TextSize = 20
+			popupTitle.TextColor3 = Color3.fromRGB(255, 200, 255)
+			popupTitle.Text = "✨ Prêt pour le Prestige ?"
+			popupTitle.TextWrapped = true
+			popupTitle.Parent = popup
+
+			-- Texte descriptif
+			local popupDesc = Instance.new("TextLabel")
+			popupDesc.Size = UDim2.new(1, -24, 0, 60)
+			popupDesc.Position = UDim2.new(0, 12, 0, 62)
+			popupDesc.BackgroundTransparency = 1
+			popupDesc.Font = Enum.Font.Gotham
+			popupDesc.TextSize = 14
+			popupDesc.TextColor3 = Color3.fromRGB(220, 220, 220)
+			popupDesc.Text = "Reset de progression contre +15% de gains permanents.\n\nNouveaul multiplicateur : " .. string.format("%.2f", 1.0 + ((currentData.Prestiges or 0) + 1) * 0.15) .. "x"
+			popupDesc.TextWrapped = true
+			popupDesc.Parent = popup
+
+			-- Bouton ✅ (Confirmer)
+			local confirmBtn = Instance.new("TextButton")
+			confirmBtn.Size = UDim2.new(0, 80, 0, 40)
+			confirmBtn.Position = UDim2.new(0, 50, 1, -52)
+			confirmBtn.BackgroundColor3 = Color3.fromRGB(100, 180, 100)
+			confirmBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			confirmBtn.Font = Enum.Font.GothamBold
+			confirmBtn.TextSize = 16
+			confirmBtn.Text = "✅ OUI"
+			confirmBtn.Parent = popup
+
+			local confirmCorner = Instance.new("UICorner")
+			confirmCorner.CornerRadius = UDim.new(0, 10)
+			confirmCorner.Parent = confirmBtn
+
+			-- Bouton ❌ (Annuler)
+			local cancelBtn = Instance.new("TextButton")
+			cancelBtn.Size = UDim2.new(0, 80, 0, 40)
+			cancelBtn.Position = UDim2.new(1, -130, 1, -52)
+			cancelBtn.BackgroundColor3 = Color3.fromRGB(180, 100, 100)
+			cancelBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			cancelBtn.Font = Enum.Font.GothamBold
+			cancelBtn.TextSize = 16
+			cancelBtn.Text = "❌ NON"
+			cancelBtn.Parent = popup
+
+			local cancelCorner = Instance.new("UICorner")
+			cancelCorner.CornerRadius = UDim.new(0, 10)
+			cancelCorner.Parent = cancelBtn
+
+			-- Logique des boutons
+			confirmBtn.MouseButton1Click:Connect(function()
+				popupGui:Destroy()
+				
+				-- Appeler PrestigeService
+				local PrestigeService = require(script.Parent.PrestigeService)
+				local success = PrestigeService.prestige(player)
+				
+				if success then
+					prestigeBtn.Text = "✨ Prestige réussi ! ✨"
+					task.delay(1.5, updatePrestigeButtonText)
+				else
+					prestigeBtn.Text = "Erreur de prestige"
+					task.delay(1.5, updatePrestigeButtonText)
+				end
+			end)
+
+			cancelBtn.MouseButton1Click:Connect(function()
+				popupGui:Destroy()
+			end)
+		end)
 	end
 
 	-- Grille 2x2 : zone utile ~472x196 (contentArea moins padding). CellSize pour 2 colonnes, 2 lignes.
